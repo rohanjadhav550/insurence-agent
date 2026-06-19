@@ -6,9 +6,9 @@ def gemini_embedding_001():
     print("#"*20)
     print("GEMINI_EMBEDDING_001")
     print("#"*20)
-    print("/n/n")
-    
+    print("\n\n")
+
     return GoogleGenerativeAIEmbeddings(
-        model="gemini_embedding_001"
+        model="gemini-embedding-001"
     )
 
