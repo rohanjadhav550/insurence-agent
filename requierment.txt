@@ -1,0 +1,8 @@
+dotenv
+langchain
+langchain-community
+langchain-google-genai
+langchain-ollama
+langchain-pinecone
+langchain-docling
+langchain-text-splitters
