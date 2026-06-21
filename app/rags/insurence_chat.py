@@ -56,10 +56,15 @@ async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
             async for delta in message.reasoning:
                 yield delta
             yield "\n"
+        if message.tool_calls:
+            async for call in message.tool_calls:
+                if "name" in call and call["name"]:
+                    yield f"tool call: {call["name"]}\n"
+                if "args" in call:
+                    yield f"tool question: {call["args"]}\n"
+        
         if hasattr(message, 'text') and message.text:
             async for delta in message.text:
                 yield delta
 
-    async for call in stream.tool_calls:
-        async for delta in call.output_deltas:
-            yield delta
+    final_state = stream.output

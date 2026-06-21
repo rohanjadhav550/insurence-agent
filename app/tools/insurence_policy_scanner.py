@@ -3,6 +3,7 @@ from app.embedders.ollama_embedders import qwen3_embedding_latest
 from langchain.tools import tool
 from langchain_pinecone import PineconeVectorStore
 import os
+from typing import AsyncGenerator
 
 @tool
 def scanner_gemini_embed(question):
@@ -30,7 +31,7 @@ def scanner_qwen3_embed(question):
     Inputs: 
         question: user question to which we have to answer
     """
-
+    
     print(f"QUESTION: {question}")
 
     vector_store = PineconeVectorStore(
@@ -39,7 +40,7 @@ def scanner_qwen3_embed(question):
     )
 
     retriver = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25})
-
+    
     return retriver.invoke(question)
 
 
