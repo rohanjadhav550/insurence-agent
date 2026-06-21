@@ -1,8 +1,23 @@
 from app.rags.insurence_chat import insurence_chat_ollama
+from fastapi import FastAPI
+import os
+import asyncio
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-def main():
-    question = "Find the Policy number in LIC new jeevan shanti policy."
-    insurence_chat_ollama(question)
+app = FastAPI()
 
-if __name__ == "__main__":
-    main()
+class ChatRequest(BaseModel):
+    prompt: str
+
+@app.get("/")
+def read_root():
+    return {"response":"Hello World"}
+
+@app.post("/api/insurance-chat")
+def chat_endpoint(request: ChatRequest):
+    prompt = request.prompt
+    return StreamingResponse(
+        insurence_chat_ollama(prompt),
+        media_type="text/event-stream"
+    )

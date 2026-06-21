@@ -4,8 +4,9 @@ from app.llms.ollama_llms import gemma4
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
 import os
+from typing import AsyncGenerator
 
-def insurence_chat_ollama(prompt):
+async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
 
     tools = [scanner_qwen3_embed]
 
@@ -41,7 +42,7 @@ def insurence_chat_ollama(prompt):
 
     config = {"configurable": {"thread_id": str(uuid7())}}
 
-    stream = agent.stream_events({
+    stream = await agent.astream_events({
         "messages":[
             {"role":"user", "content":prompt}
         ]
@@ -49,21 +50,16 @@ def insurence_chat_ollama(prompt):
     config=config,
     version="v3")
 
-    for message in stream.messages:
+    async for message in stream.messages:
         if hasattr(message, 'reasoning'):
-            print("\n🧠THINKING......\n")
-            for delta in message.reasoning:
-                print(delta, end="", flush=True)
-            print("\n")
+            yield "\n🧠THINKING......\n"
+            async for delta in message.reasoning:
+                yield delta
+            yield "\n"
         if hasattr(message, 'text') and message.text:
-            print("\n")
-            print("#"*100)
-            print(" "*47,"Answer")
-            print("#"*100)
-            print("\n")
-            for delta in message.text:
-                print(delta, end="", flush=True)
+            async for delta in message.text:
+                yield delta
 
-    for call in stream.tool_calls:
-        for delta in call.output_deltas:
-            print(delta,end="",flush=True)
+    async for call in stream.tool_calls:
+        async for delta in call.output_deltas:
+            yield delta
