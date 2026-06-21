@@ -3,10 +3,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def gemini_embedding_001():
+    print("\n")
     print("#"*20)
     print("GEMINI_EMBEDDING_001")
     print("#"*20)
-    print("\n\n")
+    print("\n")
 
     return GoogleGenerativeAIEmbeddings(
         model="gemini-embedding-001"

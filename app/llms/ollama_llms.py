@@ -8,5 +8,6 @@ def gemma4():
 
     return ChatOllama(
         model="gemma4",
-        temperature=0
+        temperature=0,
+        reasoning=True
     )

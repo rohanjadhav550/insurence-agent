@@ -1,10 +1,8 @@
 from app.tools.insurence_policy_scanner import scanner_qwen3_embed, scanner_gemini_embed
 from langchain.agents import create_agent
-from app.llms.google_genai_llms import gemma426b
 from app.llms.ollama_llms import gemma4
-from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.utils.uuid import uuid7
 import os
 
 def insurence_chat_ollama(prompt):
@@ -12,9 +10,16 @@ def insurence_chat_ollama(prompt):
     tools = [scanner_qwen3_embed]
 
     system_prompt = """
+        <|think|>
         You are a expert Insurence policy scanner agent, your task is to use the tools properly to scan the insurence policy documents.
         The tools will do searching about the policies from vector stores and provide you the documents. Using those information you have 
         to answer to the user question
+
+        **Rules to follow**
+        -> If specific information is asked to retrive (Ex. find policy number, get policy number, get policy holder name etc.,), specifically mention
+        tools to get those keys itself, No nearby keys or similer keys data is expected to be retrived.
+        -> Always tell the tools to get the search results from the specified policy document only if mentioned. Never deviate from that document.
+
         **Steps to do**
         1. Take the question and understand the emotion of the question
         2. If there are direct values or data given then carefully tell the tools that there is specific data being asked by the user in the 
@@ -30,16 +35,35 @@ def insurence_chat_ollama(prompt):
     agent = create_agent(
         model=gemma4(),
         tools=tools,
-        system_prompt=system_prompt
+        system_prompt=system_prompt,
+        checkpointer=InMemorySaver(),
     )
 
-    stream = agent.stream_events(
-        {"messages":[{"role":"user","content": prompt}]},
-        version="v3"
-    )
+    config = {"configurable": {"thread_id": str(uuid7())}}
+
+    stream = agent.stream_events({
+        "messages":[
+            {"role":"user", "content":prompt}
+        ]
+    },
+    config=config,
+    version="v3")
 
     for message in stream.messages:
-       for delta in message.text:
-           print(delta, end="", flush=True)
-    final_state = stream.output
+        if hasattr(message, 'reasoning'):
+            print("\n🧠THINKING......\n")
+            for delta in message.reasoning:
+                print(delta, end="", flush=True)
+            print("\n")
+        if hasattr(message, 'text') and message.text:
+            print("\n")
+            print("#"*100)
+            print(" "*47,"Answer")
+            print("#"*100)
+            print("\n")
+            for delta in message.text:
+                print(delta, end="", flush=True)
 
+    for call in stream.tool_calls:
+        for delta in call.output_deltas:
+            print(delta,end="",flush=True)

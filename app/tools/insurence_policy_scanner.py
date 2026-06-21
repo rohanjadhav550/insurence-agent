@@ -18,7 +18,7 @@ def scanner_gemini_embed(question):
         embedding=gemini_embedding_001()
     )
 
-    retriver = vector_store.as_retriever()
+    retriver = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25})
 
     return retriver.invoke(question)
 
@@ -31,12 +31,14 @@ def scanner_qwen3_embed(question):
         question: user question to which we have to answer
     """
 
+    print(f"QUESTION: {question}")
+
     vector_store = PineconeVectorStore(
         index_name=os.environ["INDEX_NAME_OLLAMA"],
         embedding=qwen3_embedding_latest()
     )
 
-    retriver = vector_store.as_retriever()
+    retriver = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25})
 
     return retriver.invoke(question)
 
