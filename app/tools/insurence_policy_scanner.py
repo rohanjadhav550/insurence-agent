@@ -6,7 +6,7 @@ import os
 from typing import AsyncGenerator
 
 @tool
-def scanner_gemini_embed(question):
+def scanner_gemini_embed(question: str):
     """
     This tool is ment to scan the insurence policy mentioned by the user. Following are the aspects that this tool do
         1. This will fetch the vectors by doing similarity search.
@@ -15,13 +15,25 @@ def scanner_gemini_embed(question):
     """
 
     vector_store =  PineconeVectorStore(
-        index_name=os.environ["INDEX_NAME"], 
+        index_name=os.environ["INDEX_NAME_GEMINI_001"], 
         embedding=gemini_embedding_001()
     )
 
     retriver = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 6, "lambda_mult": 0.25})
 
-    return retriver.invoke(question)
+    docs = retriver.invoke(question)
+    
+    # Convert Document objects to a plain string Gemini can consume
+    if not docs:
+        return "No relevant policy information found."
+    
+    results = []
+    for i, doc in enumerate(docs, 1):
+        source = doc.metadata.get("source", "Unknown")
+        page = doc.metadata.get("page", "")
+        results.append(f"[Chunk {i}] Source: {source} Page: {page}\n{doc.page_content}")
+    
+    return "\n\n---\n\n".join(results)
 
 @tool
 def scanner_qwen3_embed(question):

@@ -1,4 +1,4 @@
-from app.rags.insurence_chat import insurence_chat_ollama
+from app.rags.insurence_chat import insurence_chat_ollama, insurence_chat_gemini
 from fastapi import FastAPI
 import os
 import asyncio
@@ -18,6 +18,6 @@ def read_root():
 def chat_endpoint(request: ChatRequest):
     prompt = request.prompt
     return StreamingResponse(
-        insurence_chat_ollama(prompt),
+        insurence_chat_gemini(prompt),
         media_type="text/event-stream"
     )

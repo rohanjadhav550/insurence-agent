@@ -13,4 +13,4 @@ def gemini_embedder_001(document):
     # Embedding the content
     vecotor(texts, gemini_embedding_001, os.environ["INDEX_NAME_GEMINI_001"])
 
-gemini_embedder_001(["docs/max-life-group-credit-life-secure-policy-document-v1.pdf"])
+# gemini_embedder_001(["/media/rohan/D-Drive/Agentic development/insurence-agent/docs/Sample-Policy-Document_LIC-s-New-Jeevan-Shanti_UIN-512N338V01-(1).pdf"])

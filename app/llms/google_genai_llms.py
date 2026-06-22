@@ -4,6 +4,6 @@ load_dotenv()
 
 def gemma426b():
     return ChatGoogleGenerativeAI(
-        model="gemma4",
+        model="gemma-4-31b-it",
         temperature=0
     )
