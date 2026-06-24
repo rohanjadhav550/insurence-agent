@@ -9,3 +9,5 @@ langchain-text-splitters
 starlette
 uvicorn
 fastapi[standard]
+sqlalchemy
+pymysql

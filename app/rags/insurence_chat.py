@@ -4,10 +4,12 @@ from app.llms.ollama_llms import gemma4
 from app.llms.google_genai_llms import gemma426b
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
-import asyncio
 from typing import AsyncGenerator
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+import json
 
-async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
+async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGenerator[str, None]:
 
     tools = [scanner_qwen3_embed]
 
@@ -41,35 +43,69 @@ async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
         checkpointer=InMemorySaver(),
     )
 
-    config = {"configurable": {"thread_id": str(uuid7())}}
+    config = {"configurable": {"thread_id": thread}}
 
-    stream = await agent.astream_events({
-        "messages":[
-            {"role":"user", "content":prompt}
-        ]
-    },
-    config=config,
-    version="v3")
-        
-    async for message in stream.messages:
-        print(stream.values)
-        if hasattr(message, 'reasoning'):
-            yield "\n🧠THINKING......\n"
-            async for delta in message.reasoning:
-                yield delta
-            yield "\n"
-        if message.tool_calls:
-            async for call in message.tool_calls:
-                if "name" in call and call["name"]:
-                    yield f"tool call: {call["name"]}\n"
-                if "args" in call:
-                    yield f"tool question: {call["args"]}\n"
-        
-        if hasattr(message, 'text') and message.text:
-            async for delta in message.text:
-                yield delta
+    # 1. Save user message BEFORE calling agent
+    db.execute(
+        text("INSERT INTO messages (thread_id, role, content) VALUES (:thread_id, :role, :content)"),
+        {"thread_id": thread, "role": "user", "content": prompt}
+    )
+    db.commit()
 
-    final_state = stream.output
+    full_response = ""
+    reasoning_started = False
+
+    def sse(type: str, content: str) -> str:
+        """Format as SSE JSON event"""
+        return f"data: {json.dumps({'type': type, 'content': content})}\n\n"
+
+    async for event in agent.astream_events(
+        {"messages": [{"role": "user", "content": prompt}]},
+        config=config,
+        version="v2"
+    ):
+        kind = event["event"]
+        data = event.get("data", {})
+
+        if kind == "on_chat_model_stream":
+            chunk = data.get("chunk")
+            if chunk:
+                # Reasoning tokens
+                reasoning_delta = chunk.additional_kwargs.get("reasoning_content", "")
+                if reasoning_delta:
+                    if not reasoning_started:
+                        yield sse("think_start", "")
+                        reasoning_started = True
+                    yield sse("thinking", reasoning_delta)
+
+                # Response tokens
+                if isinstance(chunk.content, str) and chunk.content:
+                    if reasoning_started:
+                        yield sse("think_end", "")
+                        reasoning_started = False
+                    full_response += chunk.content
+                    yield sse("text", chunk.content)
+
+        elif kind == "on_tool_start":
+            tool_name = event.get("name", "")
+            tool_input = data.get("input", {})
+            yield sse("tool_start", json.dumps({"name": tool_name, "input": tool_input}))
+
+        elif kind == "on_tool_end":
+            yield sse("tool_end", "")
+
+    # Save assistant response
+    if full_response:
+        db.execute(
+            text("INSERT INTO messages (thread_id, role, content) VALUES (:thread_id, :role, :content)"),
+            {"thread_id": thread, "role": "assistant", "content": full_response}
+        )
+        db.execute(
+            text("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE thread_id = :thread_id"),
+            {"thread_id": thread}
+        )
+        db.commit()
+    
 
 async def insurence_chat_gemini(prompt)-> AsyncGenerator[str, None]:
 
