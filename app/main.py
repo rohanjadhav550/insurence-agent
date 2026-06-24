@@ -18,6 +18,6 @@ def read_root():
 def chat_endpoint(request: ChatRequest):
     prompt = request.prompt
     return StreamingResponse(
-        insurence_chat_gemini(prompt),
+        insurence_chat_ollama(prompt),
         media_type="text/event-stream"
     )

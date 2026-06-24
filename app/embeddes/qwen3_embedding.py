@@ -3,6 +3,7 @@ from app.comman.text_splitters import text_splitter
 from app.embedders.ollama_embedders import qwen3_embedding_latest
 from app.vectors.pinecone_vector_db import vecotor
 import os
+from pathlib import Path
 
 def qwen3(document):
     doc = docling_loader(document)
@@ -10,5 +11,15 @@ def qwen3(document):
     text = text_splitter(doc)
 
     vecotor(text, qwen3_embedding_latest, os.environ["INDEX_NAME_OLLAMA"])
+    
 
-# qwen3(["/media/rohan/D-Drive/Agentic development/insurence-agent/docs/Sample-Policy-Document_LIC-s-New-Jeevan-Shanti_UIN-512N338V01-(1).pdf"])
+# docs_dir = Path("docs/Insurance_documents").resolve()
+
+# for file_path in docs_dir.rglob("*.pdf"):
+#     print("\n")
+#     print("#"*40)
+#     print("\n")
+#     print(file_path)
+#     print("\n")
+#     print("#"*40)
+#     qwen3(file_path)

@@ -4,7 +4,7 @@ from app.llms.ollama_llms import gemma4
 from app.llms.google_genai_llms import gemma426b
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
-import os
+import asyncio
 from typing import AsyncGenerator
 
 async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
@@ -50,8 +50,9 @@ async def insurence_chat_ollama(prompt)-> AsyncGenerator[str, None]:
     },
     config=config,
     version="v3")
-
+        
     async for message in stream.messages:
+        print(stream.values)
         if hasattr(message, 'reasoning'):
             yield "\n🧠THINKING......\n"
             async for delta in message.reasoning:
