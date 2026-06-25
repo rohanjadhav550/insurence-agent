@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database.connection import get_db
+from database.connection import get_db, get_b2b_db
 import uuid
 
 app = FastAPI()
@@ -131,3 +131,11 @@ def update_title(thread_id: str, db: Session = Depends(get_db)):
         db.commit()
 
     return {"status": "updated"}
+
+@app.get('/api/b2b/health')
+def b2b_db_health(db: Session = Depends(get_b2b_db)):
+    result = db.execute(text("SELECT * FROM city LIMIT 1")).fetchall()
+    if result is not None:
+        return True
+    else: 
+        return "Connection failed"
