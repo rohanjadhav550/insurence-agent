@@ -22,7 +22,7 @@ def chat_endpoint(request: ChatRequest, db: Session = Depends(get_db)):
     prompt = request.prompt
     thread = request.thread
     return StreamingResponse(
-        insurence_chat_ollama(prompt, thread, db),
+        insurence_chat_gemini(prompt, thread, db),
         media_type="text/event-stream"
     )
 

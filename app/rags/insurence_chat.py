@@ -1,4 +1,5 @@
 from app.tools.insurence_policy_scanner import scanner_qwen3_embed, scanner_gemini_embed
+from app.tools.loan_request_tool import  index, show, show_by_email_or_phone, show_by_name
 from langchain.agents import create_agent
 from app.llms.ollama_llms import gemma4
 from app.llms.google_genai_llms import gemma426b
@@ -11,7 +12,7 @@ import json
 
 async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGenerator[str, None]:
 
-    tools = [scanner_qwen3_embed]
+    tools = [scanner_qwen3_embed, index, show, show_by_email_or_phone, show_by_name]
 
     system_prompt = """
         <|think|>
@@ -23,6 +24,7 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
         -> If specific information is asked to retrive (Ex. find policy number, get policy number, get policy holder name etc.,), specifically mention
         tools to get those keys itself, No nearby keys or similer keys data is expected to be retrived.
         -> Always tell the tools to get the search results from the specified policy document only if mentioned. Never deviate from that document.
+        -> If user have asked to retrive any data like loan request data or any, use the loan_requet_tool's tools
 
         **Steps to do**
         1. Take the question and understand the emotion of the question
@@ -107,12 +109,11 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
         db.commit()
     
 
-async def insurence_chat_gemini(prompt)-> AsyncGenerator[str, None]:
+async def insurence_chat_gemini(prompt: str, thread: str, db: Session) -> AsyncGenerator[str, None]:
 
-    tools = [scanner_gemini_embed]
+    tools = [scanner_gemini_embed, index, show, show_by_email_or_phone, show_by_name]
 
     system_prompt = """
-        <|think|>
         You are a expert Insurence policy scanner agent, your task is to use the tools properly to scan the insurence policy documents.
         The tools will do searching about the policies from vector stores and provide you the documents. Using those information you have 
         to answer to the user question
@@ -134,6 +135,7 @@ async def insurence_chat_gemini(prompt)-> AsyncGenerator[str, None]:
         form the  tools or datasources then straigh away tell user there is no information. You must be very honest about it and scanning or any operation must
         be arround the data we have in our sources it self.
         """
+
     agent = create_agent(
         model=gemma426b(),
         tools=tools,
@@ -141,33 +143,96 @@ async def insurence_chat_gemini(prompt)-> AsyncGenerator[str, None]:
         checkpointer=InMemorySaver(),
     )
 
-    config = {"configurable": {"thread_id": str(uuid7())}}
+    config = {"configurable": {"thread_id": thread}}
 
-    stream = await agent.astream_events({
-        "messages":[
-            {"role":"user", "content":prompt}
-        ]
-    },
-    config=config,
-    version="v3")
+    # Save user message BEFORE calling agent
+    db.execute(
+        text("INSERT INTO messages (thread_id, role, content) VALUES (:thread_id, :role, :content)"),
+        {"thread_id": thread, "role": "user", "content": prompt}
+    )
+    db.commit()
 
+    full_response = ""
+    reasoning_started = False
 
-    async for message in stream.messages:
-        if hasattr(message, 'reasoning'):
-            yield "\n🧠THINKING......\n"
-            async for delta in message.reasoning:
-                yield delta
-            yield "\n"
-        
-        if message.tool_calls:
-            async for call in message.tool_calls:
-                if "name" in call and call["name"]:
-                    yield f"tool call: {call["name"]}\n"
-                if "args" in call:
-                    yield f"tool question: {call["args"]}\n"
-        
-        if hasattr(message, 'text') and message.text:
-            async for delta in message.text:
-                yield delta
+    def sse(type: str, content: str) -> str:
+        """Format as SSE JSON event"""
+        return f"data: {json.dumps({'type': type, 'content': content})}\n\n"
 
-    final_state = stream.output
+    async for event in agent.astream_events(
+        {"messages": [{"role": "user", "content": prompt}]},
+        config=config,
+        version="v2"
+    ):
+        kind = event["event"]
+        data = event.get("data", {})
+
+        if kind == "on_chat_model_stream":
+            chunk = data.get("chunk")
+            if not chunk:
+                continue
+
+            content = chunk.content
+
+            # ── Gemini thinking models: content is a list of parts ──
+            if isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+
+                    if part.get("type") == "thinking":
+                        thinking_text = part.get("thinking", "")
+                        if thinking_text:
+                            if not reasoning_started:
+                                yield sse("think_start", "")
+                                reasoning_started = True
+                            yield sse("thinking", thinking_text)
+
+                    elif part.get("type") == "text":
+                        text_delta = part.get("text", "")
+                        if text_delta:
+                            if reasoning_started:
+                                yield sse("think_end", "")
+                                reasoning_started = False
+                            full_response += text_delta
+                            yield sse("text", text_delta)
+
+            # ── Plain string: check additional_kwargs first for reasoning ──
+            elif isinstance(content, str):
+                reasoning_delta = chunk.additional_kwargs.get("reasoning_content", "")
+                if reasoning_delta:
+                    if not reasoning_started:
+                        yield sse("think_start", "")
+                        reasoning_started = True
+                    yield sse("thinking", reasoning_delta)
+
+                if content:
+                    if reasoning_started:
+                        yield sse("think_end", "")
+                        reasoning_started = False
+                    full_response += content
+                    yield sse("text", content)
+
+        elif kind == "on_tool_start":
+            tool_name = event.get("name", "")
+            tool_input = data.get("input", {})
+            yield sse("tool_start", json.dumps({"name": tool_name, "input": tool_input}))
+
+        elif kind == "on_tool_end":
+            yield sse("tool_end", "")
+
+    # Close thinking block if model stopped mid-thought
+    if reasoning_started:
+        yield sse("think_end", "")
+
+    # Save assistant response
+    if full_response:
+        db.execute(
+            text("INSERT INTO messages (thread_id, role, content) VALUES (:thread_id, :role, :content)"),
+            {"thread_id": thread, "role": "assistant", "content": full_response}
+        )
+        db.execute(
+            text("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE thread_id = :thread_id"),
+            {"thread_id": thread}
+        )
+        db.commit()
