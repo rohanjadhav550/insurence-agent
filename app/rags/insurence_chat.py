@@ -1,7 +1,8 @@
 from app.tools.insurence_policy_scanner import scanner_qwen3_embed, scanner_gemini_embed
-from app.tools.loan_request_tool import  index, show, show_by_email_or_phone, show_by_name
+from app.tools.loan_request_tool import  loan_request_index_by_partner_id, loan_request_index, loan_request_show, loan_request_show_by_email_or_phone, loan_request_show_by_name
+from app.tools.partner_tool import partner_index
 from langchain.agents import create_agent
-from app.llms.ollama_llms import gemma4
+from app.llms.ollama_llms import gemma4, gemma431b
 from app.llms.google_genai_llms import gemma426b
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
@@ -12,40 +13,35 @@ import json
 
 async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGenerator[str, None]:
 
-    tools = [scanner_qwen3_embed, index, show, show_by_email_or_phone, show_by_name]
+    tools = [
+        scanner_qwen3_embed, 
+        loan_request_index, 
+        loan_request_show, 
+        loan_request_show_by_email_or_phone, 
+        loan_request_show_by_name,
+        loan_request_index_by_partner_id,
+        partner_index
+    ]
 
     system_prompt = """
         <|think|>
-        You are a expert Insurence policy scanner agent, your task is to use the tools properly to scan the insurence policy documents.
-        The tools will do searching about the policies from vector stores and provide you the documents. Using those information you have 
-        to answer to the user question
-
+        
         **Rules to follow**
-        -> If specific information is asked to retrive (Ex. find policy number, get policy number, get policy holder name etc.,), specifically mention
-        tools to get those keys itself, No nearby keys or similer keys data is expected to be retrived.
         -> Always tell the tools to get the search results from the specified policy document only if mentioned. Never deviate from that document.
         -> If user have asked to retrive any data like loan request data or any, use the loan_requet_tool's tools
-
-        **Steps to do**
-        1. Take the question and understand the emotion of the question
-        2. If there are direct values or data given then carefully tell the tools that there is specific data being asked by the user in the 
-        question. If there are generic questions involved then frame the prompt to the tools for the optimal results to be picked
-        3. Analyze the documents provided by the tools. It is very important for you to be 200 percent sure that the retrived
-        document or the data from the tools answer the user question itself.
-        4. If not then improvise the query you made to the tools and get the results. Do the step3 and step 4 till you get the aaccurate results. But 
-        never exceed the try count more then 3
-        5. After the confirmation, if there are any answers then produce them to the user in easy and readble format. If there are no results retrived
-        form the  tools or datasources then straigh away tell user there is no information. You must be very honest about it and scanning or any operation must
-        be arround the data we have in our sources it self.
+        -> Always check the tools list and there description to decide which tool to be used first based on the question aked. Deciding the which tool 
+        to be used at what point is very very important. Decide the series of tools to be called after analyzing if they must be used then only.
+        -> Never deveate from the user question, answer the details to which user requested
+        -> After tool call always analyze the actual prompt of the user, the though must not deviate from the users prompt
         """
     agent = create_agent(
         model=gemma4(),
         tools=tools,
         system_prompt=system_prompt,
-        checkpointer=InMemorySaver(),
+        # checkpointer=InMemorySaver(),
     )
 
-    config = {"configurable": {"thread_id": thread}}
+    # config = {"configurable": {"thread_id": thread}}
 
     # 1. Save user message BEFORE calling agent
     db.execute(
@@ -63,7 +59,7 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
 
     async for event in agent.astream_events(
         {"messages": [{"role": "user", "content": prompt}]},
-        config=config,
+        # config=config,
         version="v2"
     ):
         kind = event["event"]
@@ -111,7 +107,14 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
 
 async def insurence_chat_gemini(prompt: str, thread: str, db: Session) -> AsyncGenerator[str, None]:
 
-    tools = [scanner_gemini_embed, index, show, show_by_email_or_phone, show_by_name]
+    tools = [scanner_gemini_embed, 
+            loan_request_index, 
+            loan_request_show, 
+            loan_request_show_by_email_or_phone, 
+            loan_request_show_by_name,
+            loan_request_index_by_partner_id,
+            partner_index
+        ]
 
     system_prompt = """
         You are a expert Insurence policy scanner agent, your task is to use the tools properly to scan the insurence policy documents.

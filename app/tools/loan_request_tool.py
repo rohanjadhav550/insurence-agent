@@ -8,7 +8,7 @@ load_dotenv()
 
 
 @tool
-def index(limit: int = 10, offset: int = 0) -> dict:
+def loan_request_index(limit: int = 10, offset: int = 0) -> dict:
     """
     Fetch all loan requests from the loan_request table with pagination.
     Use this tool when you want to retrieve all loan requests from the system.
@@ -41,9 +41,50 @@ def index(limit: int = 10, offset: int = 0) -> dict:
     finally:
         db.close()
 
+@tool
+def loan_request_index_by_partner_id(limit: int=10, offset: int=0, id: Optional[int]=None) -> dict:
+    """
+        This tool will fetch the list of the loan requests by partner_id
+        use this tool when you have to fetch the loan requets by partner_id
+        Args:
+            limit: Maximum number of record returned (default 10)
+            offset: Number of records to skip for pagination (default 0)
+        Return:
+            Dict with 'data' (list of loan requests), 'total' count, and pagination info.
+    """
+    db = next(get_b2b_db())
+    limit = min(limit,10)
+
+    try:
+        total: int = db.execute(text("SELECT COUNT(*) FROM loan_request")).scalar() or 0
+
+        result = db.execute(text(
+            """
+            SELECT * FROM 
+            loan_request
+            WHERE id = :id
+            LIMIT :limit
+            OFFSET :offset
+            """
+        ),
+        {
+            "id":id,
+            "limit":limit,
+            "offset":offset
+        }).fetchall()
+
+        return {
+            "data": [dict(row._mapping) for row in result],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < total
+        }
+    finally:
+        db.close()
 
 @tool
-def show(case_id: str) -> dict:
+def loan_request_show(case_id: str) -> dict:
     """
     Fetch a single loan request by case ID.
     Use this tool when you want to retrieve a specific loan request using its case ID.
@@ -67,7 +108,7 @@ def show(case_id: str) -> dict:
 
 
 @tool
-def show_by_name(
+def loan_request_show_by_name(
     first_name: Optional[str] = None,
     last_name: Optional[str] = None,
     limit: int = 10,
@@ -126,7 +167,7 @@ def show_by_name(
 
 
 @tool
-def show_by_email_or_phone(
+def loan_request_show_by_email_or_phone(
     email: Optional[str] = None,
     phone: Optional[str] = None,
     limit: int = 10,
