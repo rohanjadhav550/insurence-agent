@@ -2,61 +2,38 @@ from langchain.tools import tool
 from dotenv import load_dotenv
 from sqlalchemy import text, inspect
 from database.connection import get_b2b_db
+from app.tools.database_tools.database_overall_tools import show_tables, table_details, select_query_executor
+from app.llms.google_genai_llms import gemma426b
+from langchain.agents import create_agent
 
 load_dotenv()
 
-def database_tables_scann_tool():
-    """
-    This tool will be helpfull in finding the tables, there descriptions and details present in the database.
-    Use this tool for the details about the database
-    """
+def database_tables_scann_tool(prompt):
+    system_prompt = """
+        You helpfull in finding the tables, there descriptions and details present in the database.
+        """
 
-    try:
-        # Get the list of the tables
-        tables = show_tables()
-        
-        for table in tables:
-            # get details of each table
-            details = table_details(table)
-            print(details)
-            print()
-    finally:
-        print()
+    agent = create_agent(
+        model=gemma426b(),
+        tools=[show_tables,table_details, select_query_executor],
+    )
 
-def show_tables():
-    db = next(get_b2b_db())
-    try:
-        engine = db.get_bind()
-        inspector = inspect(engine)
-        return inspector.get_table_names()
-    finally:
-        db.close()
+    for chunk in agent.stream(
+        {"messages": [{"role": "user", "content": prompt}]},
+        stream_mode="messages",
+        version="v2",
+    ):
+        if chunk["type"] == "messages":
+            token, metadata = chunk["data"]
+            if(len(token.content_blocks)):
+                if(token.content_blocks[-1]['type'] == "reasoning"):
+                    print(token.content_blocks[-1]['reasoning'], end=" ", flush=True)
+                elif(token.content_blocks[-1]['type'] == "tool_call"):
+                    print(f"Tool: {token.content_blocks[-1]['name']}", end=" ", flush=True)
+                    print(f"Arguments: {token.content_blocks[-1]['args']}", end=" ", flush=True)
+                else:
+                    print(token.content_blocks[-1]['text'], end=" ", flush=True)
+                    
+            print("\n") 
 
-def table_details(table):
-    db = next(get_b2b_db())
-    try:
-        engine = db.get_bind()
-        inspector = inspect(engine)
-        
-        # columns of the table
-        columns = inspector.get_columns(table)
-
-        # primary key 
-        pk = inspector.get_pk_constraint(table)
-
-        # foreign key constraints
-        fks = inspector.get_foreign_keys(table)
-
-        # indexes
-        index = inspector.get_indexes(table)
-
-        return {
-            "columns": columns,
-            "primary_key": pk,
-            "foreign_keys": fks,
-            "indexes": index
-        }
-    finally:
-        db.close()    
-
-database_tables_scann_tool()
+database_tables_scann_tool("find me latest loans and there loan requests")
