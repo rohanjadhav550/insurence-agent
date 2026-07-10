@@ -1,4 +1,4 @@
-/insurence
+/venv
 .env
 /docs
 **/*.pyc

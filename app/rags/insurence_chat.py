@@ -2,7 +2,7 @@ from app.tools.insurence_policy_scanner import scanner_qwen3_embed, scanner_gemi
 from app.tools.loan_request_tool import  loan_request_index_by_partner_id, loan_request_index, loan_request_show, loan_request_show_by_email_or_phone, loan_request_show_by_name
 from app.tools.partner_tool import partner_index
 from langchain.agents import create_agent
-from app.llms.ollama_llms import gemma4, gemma431b
+from app.llms.ollama_llms import gemma4, gemma431b, gemma412b
 from app.llms.google_genai_llms import gemma426b
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
@@ -35,7 +35,7 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
         -> After tool call always analyze the actual prompt of the user, the though must not deviate from the users prompt
         """
     agent = create_agent(
-        model=gemma4(),
+        model=gemma412b(),
         tools=tools,
         system_prompt=system_prompt,
         # checkpointer=InMemorySaver(),

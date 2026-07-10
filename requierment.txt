@@ -1,5 +1,5 @@
-dotenv
-langchain
+python-dotenv
+langchain>=1.3.11
 langchain-community
 langchain-google-genai
 langchain-ollama
@@ -11,3 +11,4 @@ uvicorn
 fastapi[standard]
 sqlalchemy
 pymysql
+alembic

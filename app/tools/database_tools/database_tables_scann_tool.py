@@ -4,17 +4,18 @@ from sqlalchemy import text, inspect
 from database.connection import get_b2b_db
 from app.tools.database_tools.database_overall_tools import show_tables, table_details, select_query_executor
 from app.llms.google_genai_llms import gemma426b
+from app.llms.ollama_llms import gemma4, gemma412b
 from langchain.agents import create_agent
 
 load_dotenv()
 
-def database_tables_scann_tool(prompt):
+def database_tables_scann_gemma426b_tool(prompt):
     system_prompt = """
         You helpfull in finding the tables, there descriptions and details present in the database.
         """
 
     agent = create_agent(
-        model=gemma426b(),
+        model=gemma412b(),
         tools=[show_tables,table_details, select_query_executor],
     )
 
@@ -36,4 +37,24 @@ def database_tables_scann_tool(prompt):
                     
             print("\n") 
 
-database_tables_scann_tool("find me latest loans and there loan requests")
+def database_tables_scann_gemma4_tool(prompt):
+    system_prompt = """
+        <|think|>
+        You helpfull in finding the tables, there descriptions and details present in the database.
+        """
+
+    agent = create_agent(
+        model=gemma412b(),
+        tools=[show_tables,table_details, select_query_executor],
+        system_prompt=system_prompt
+    )
+
+    for chunk in agent.stream(
+        {"messages": [prompt]},
+        stream_mode=["messages", "updates"],
+        version="v2",
+    ):
+
+        print(chunk)
+
+database_tables_scann_gemma4_tool("find me latest loans and there loan requests")
