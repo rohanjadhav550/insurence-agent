@@ -22,6 +22,37 @@ def gemma412b():
         temperature=0,
         reasoning=True
     )
+def gemma412b_non_think():
+    print("#"*20)
+    print("Gemma4 Model")
+    print("#"*20)
+    print("\n\n")
+
+    return ChatOllama(
+        model="gemma4:12b",
+        temperature=0,
+    )
+def qwen354b():
+    print("#"*20)
+    print("Qwen3.5:4b Model")
+    print("#"*20)
+    print("\n\n")
+
+    return ChatOllama(
+        model="qwen3.5:4b",
+        temperature=0,
+        reasoning=True
+    )
+def qwen354b_no_think():
+    print("#"*20)
+    print("Qwen3.5:4b Model")
+    print("#"*20)
+    print("\n\n")
+
+    return ChatOllama(
+        model="qwen3.5:4b",
+        temperature=0
+    )
 def gemma431b():
     print("#"*20)
     print("Gemma431b Model")

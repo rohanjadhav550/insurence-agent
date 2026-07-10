@@ -1,8 +1,9 @@
 from app.tools.insurence_policy_scanner import scanner_qwen3_embed, scanner_gemini_embed
 from app.tools.loan_request_tool import  loan_request_index_by_partner_id, loan_request_index, loan_request_show, loan_request_show_by_email_or_phone, loan_request_show_by_name
+from app.tools.database_tools.database_tables_scann_tool import database_tables_scann_agent_tool
 from app.tools.partner_tool import partner_index
 from langchain.agents import create_agent
-from app.llms.ollama_llms import gemma4, gemma431b, gemma412b
+from app.llms.ollama_llms import gemma4, gemma431b, gemma412b, qwen354b
 from app.llms.google_genai_llms import gemma426b
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.utils.uuid import uuid7
@@ -15,33 +16,32 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
 
     tools = [
         scanner_qwen3_embed, 
-        loan_request_index, 
-        loan_request_show, 
-        loan_request_show_by_email_or_phone, 
-        loan_request_show_by_name,
-        loan_request_index_by_partner_id,
-        partner_index
+        # loan_request_index, 
+        # loan_request_show, 
+        # loan_request_show_by_email_or_phone, 
+        # loan_request_show_by_name,
+        # loan_request_index_by_partner_id,
+        # partner_index,
+        database_tables_scann_agent_tool
     ]
 
     system_prompt = """
-        <|think|>
-        
         **Rules to follow**
         -> Always tell the tools to get the search results from the specified policy document only if mentioned. Never deviate from that document.
-        -> If user have asked to retrive any data like loan request data or any, use the loan_requet_tool's tools
-        -> Always check the tools list and there description to decide which tool to be used first based on the question aked. Deciding the which tool 
+        -> Always check the tools list and there description to decide which tool to be used first based on the question aked. Deciding the which tool
         to be used at what point is very very important. Decide the series of tools to be called after analyzing if they must be used then only.
-        -> Never deveate from the user question, answer the details to which user requested
-        -> After tool call always analyze the actual prompt of the user, the though must not deviate from the users prompt
+        -> `database_tables_scann_agent_tool` is a data-retrieval worker only. It returns raw facts about the database (table names, schema
+        details, query rows) and never answers the user's question itself. Treat its output as evidence: reason over it yourself and compose
+        the final answer to the user.
         """
     agent = create_agent(
-        model=gemma412b(),
+        model=qwen354b(),
         tools=tools,
         system_prompt=system_prompt,
-        # checkpointer=InMemorySaver(),
+        checkpointer=InMemorySaver(),
     )
 
-    # config = {"configurable": {"thread_id": thread}}
+    config = {"configurable": {"thread_id": thread}}
 
     # 1. Save user message BEFORE calling agent
     db.execute(
@@ -59,12 +59,12 @@ async def insurence_chat_ollama(prompt: str, thread: str, db: Session)-> AsyncGe
 
     async for event in agent.astream_events(
         {"messages": [{"role": "user", "content": prompt}]},
-        # config=config,
+        config=config,
         version="v2"
     ):
         kind = event["event"]
         data = event.get("data", {})
-
+        print(f"Event: {kind}, Data: {data}")  # Debugging line
         if kind == "on_chat_model_stream":
             chunk = data.get("chunk")
             if chunk:
